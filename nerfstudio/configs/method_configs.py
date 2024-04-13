@@ -61,6 +61,7 @@ from nerfstudio.models.semantic_nerfw import SemanticNerfWModelConfig
 from nerfstudio.models.splatfacto import SplatfactoModelConfig
 from nerfstudio.models.tensorf import TensoRFModelConfig
 from nerfstudio.models.vanilla_nerf import NeRFModel, VanillaModelConfig
+from nerfstudio.models.ndf import NDFModelConfig
 from nerfstudio.pipelines.base_pipeline import VanillaPipelineConfig
 from nerfstudio.pipelines.dynamic_batch import DynamicBatchPipelineConfig
 from nerfstudio.plugins.registry import discover_methods
@@ -81,7 +82,68 @@ descriptions = {
     "neus": "Implementation of NeuS. (slow)",
     "neus-facto": "Implementation of NeuS-Facto. (slow)",
     "splatfacto": "Gaussian Splatting model",
+    "ndf": "Neural Diff Field model",
 }
+
+# method_configs["ndf"] = TrainerConfig(
+#     method_name="ndf",
+#     steps_per_eval_batch=500,
+#     steps_per_save=2000,
+#     max_num_iterations=30000,
+#     mixed_precision=True,
+#     pipeline=VanillaPipelineConfig(
+#         datamanager=ParallelDataManagerConfig(
+#             dataparser=NerfstudioDataParserConfig(),
+#             train_num_rays_per_batch=4096,
+#             eval_num_rays_per_batch=4096,
+#         ),
+#         model=NDFModelConfig(
+#             eval_num_rays_per_chunk=1 << 15,
+#             average_init_density=0.01,
+#             camera_optimizer=CameraOptimizerConfig(mode="SO3xR3"),
+#         ),
+#     ),
+#     optimizers={
+#         "proposal_networks": {
+#             "optimizer": AdamOptimizerConfig(lr=1e-2, eps=1e-15),
+#             "scheduler": ExponentialDecaySchedulerConfig(lr_final=0.0001, max_steps=200000),
+#         },
+#         "fields": {
+#             "optimizer": AdamOptimizerConfig(lr=1e-2, eps=1e-15),
+#             "scheduler": ExponentialDecaySchedulerConfig(lr_final=0.0001, max_steps=200000),
+#         },
+#         "camera_opt": {
+#             "optimizer": AdamOptimizerConfig(lr=1e-3, eps=1e-15),
+#             "scheduler": ExponentialDecaySchedulerConfig(lr_final=1e-4, max_steps=5000),
+#         },
+#     },
+#     viewer=ViewerConfig(num_rays_per_chunk=1 << 15),
+#     vis="viewer",
+# )
+
+method_configs["ndf"] = TrainerConfig(
+    method_name="ndf",
+    steps_per_eval_batch=500,
+    steps_per_save=2000,
+    max_num_iterations=10000,
+    mixed_precision=True,
+    pipeline=VanillaPipelineConfig(
+        datamanager=ParallelDataManagerConfig(
+            dataparser=NerfstudioDataParserConfig(),
+            train_num_rays_per_batch=2048,
+            eval_num_rays_per_batch=2048,
+        ),
+        model=NDFModelConfig(eval_num_rays_per_chunk=4096),
+    ),
+    optimizers={
+        "fields": {
+            "optimizer": AdamOptimizerConfig(lr=1e-2, eps=1e-15),
+            "scheduler": ExponentialDecaySchedulerConfig(lr_final=0.0001, max_steps=200000),
+        }
+    },
+    viewer=ViewerConfig(num_rays_per_chunk=1 << 12),
+    vis="viewer",
+)
 
 method_configs["nerfacto"] = TrainerConfig(
     method_name="nerfacto",
@@ -632,10 +694,8 @@ method_configs["splatfacto"] = TrainerConfig(
         },
         "quats": {"optimizer": AdamOptimizerConfig(lr=0.001, eps=1e-15), "scheduler": None},
         "camera_opt": {
-            "optimizer": AdamOptimizerConfig(lr=1e-4, eps=1e-15),
-            "scheduler": ExponentialDecaySchedulerConfig(
-                lr_final=5e-7, max_steps=30000, warmup_steps=1000, lr_pre_warmup=0
-            ),
+            "optimizer": AdamOptimizerConfig(lr=1e-3, eps=1e-15),
+            "scheduler": ExponentialDecaySchedulerConfig(lr_final=5e-5, max_steps=30000),
         },
     },
     viewer=ViewerConfig(num_rays_per_chunk=1 << 15),
@@ -686,10 +746,8 @@ method_configs["splatfacto-big"] = TrainerConfig(
         },
         "quats": {"optimizer": AdamOptimizerConfig(lr=0.001, eps=1e-15), "scheduler": None},
         "camera_opt": {
-            "optimizer": AdamOptimizerConfig(lr=1e-4, eps=1e-15),
-            "scheduler": ExponentialDecaySchedulerConfig(
-                lr_final=5e-7, max_steps=30000, warmup_steps=1000, lr_pre_warmup=0
-            ),
+            "optimizer": AdamOptimizerConfig(lr=1e-3, eps=1e-15),
+            "scheduler": ExponentialDecaySchedulerConfig(lr_final=5e-5, max_steps=30000),
         },
     },
     viewer=ViewerConfig(num_rays_per_chunk=1 << 15),

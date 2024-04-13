@@ -41,6 +41,7 @@ class FieldHeadNames(Enum):
     SDF = "sdf"
     ALPHA = "alpha"
     GRADIENT = "gradient"
+    DIFF_DENSITY= "diff_density"
 
 
 class FieldHead(FieldComponent):

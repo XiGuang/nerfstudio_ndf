@@ -16,7 +16,6 @@
 Export utils such as structs, point cloud generation, and rendering code.
 """
 
-
 from __future__ import annotations
 
 import sys
@@ -80,20 +79,91 @@ def get_mesh_from_filename(filename: str, target_num_faces: Optional[int] = None
     return get_mesh_from_pymeshlab_mesh(mesh)
 
 
+def generate_point_cloud_ndf(
+        pipeline: Pipeline,
+        num_points: int = 1000000,
+        density_threshold=0.9,
+        use_bounding_box: bool = True,
+        bounding_box_min: Optional[Tuple[float, float, float]] = None,
+        bounding_box_max: Optional[Tuple[float, float, float]] = None,
+        crop_obb: Optional[OrientedBox] = None,
+) -> o3d.geometry.PointCloud:
+    """Generate a point cloud from a nerf.
+
+    Args:
+        density_threshold:
+        pipeline: Pipeline to evaluate with.
+        num_points: Number of points to generate. May result in less if outlier removal is used.
+        use_bounding_box: Whether to use a bounding box to sample points.
+        bounding_box_min: Minimum of the bounding box.
+        bounding_box_max: Maximum of the bounding box.
+
+    Returns:
+        Point cloud.
+    """
+
+    progress = Progress(
+        TextColumn(":cloud: Computing Point Cloud :cloud:"),
+        BarColumn(),
+        TaskProgressColumn(show_speed=True),
+        TimeRemainingColumn(elapsed_when_finished=True, compact=True),
+        console=CONSOLE,
+    )
+    points = []
+    rgbs = []
+    if use_bounding_box and (crop_obb is not None and bounding_box_max is not None):
+        CONSOLE.print("Provided aabb and crop_obb at the same time, using only the obb", style="bold yellow")
+    with progress as progress_bar:
+        task = progress_bar.add_task("Generating Point Cloud", total=num_points)
+        while not progress_bar.finished:
+
+            with torch.no_grad():
+                ray_bundle, _ = pipeline.datamanager.next_train(0)
+                assert isinstance(ray_bundle, RayBundle)
+                point, rgb = pipeline.model.get_diff_points(ray_bundle, density_threshold)
+
+            if use_bounding_box:
+                if crop_obb is None:
+                    comp_l = torch.tensor(bounding_box_min, device=point.device)
+                    comp_m = torch.tensor(bounding_box_max, device=point.device)
+                    assert torch.all(
+                        comp_l < comp_m
+                    ), f"Bounding box min {bounding_box_min} must be smaller than max {bounding_box_max}"
+                    mask = torch.all(torch.concat([point > comp_l, point < comp_m], dim=-1), dim=-1)
+                else:
+                    mask = crop_obb.within(point)
+                point = point[mask]
+                rgb = rgb[mask]
+
+            points.append(point)
+            rgbs.append(rgb)
+            progress.advance(task, point.shape[0])
+    points = torch.cat(points, dim=0)
+    rgbs = torch.cat(rgbs, dim=0)
+
+    import open3d as o3d
+
+    pcd = o3d.geometry.PointCloud()
+    pcd.points = o3d.utility.Vector3dVector(points.double().cpu().numpy())
+    pcd.colors = o3d.utility.Vector3dVector(rgbs.double().cpu().numpy())
+
+    return pcd
+
+
 def generate_point_cloud(
-    pipeline: Pipeline,
-    num_points: int = 1000000,
-    remove_outliers: bool = True,
-    estimate_normals: bool = False,
-    reorient_normals: bool = False,
-    rgb_output_name: str = "rgb",
-    depth_output_name: str = "depth",
-    normal_output_name: Optional[str] = None,
-    use_bounding_box: bool = True,
-    bounding_box_min: Optional[Tuple[float, float, float]] = None,
-    bounding_box_max: Optional[Tuple[float, float, float]] = None,
-    crop_obb: Optional[OrientedBox] = None,
-    std_ratio: float = 10.0,
+        pipeline: Pipeline,
+        num_points: int = 1000000,
+        remove_outliers: bool = True,
+        estimate_normals: bool = False,
+        reorient_normals: bool = False,
+        rgb_output_name: str = "rgb",
+        depth_output_name: str = "depth",
+        normal_output_name: Optional[str] = None,
+        use_bounding_box: bool = True,
+        bounding_box_min: Optional[Tuple[float, float, float]] = None,
+        bounding_box_max: Optional[Tuple[float, float, float]] = None,
+        crop_obb: Optional[OrientedBox] = None,
+        std_ratio: float = 10.0,
 ) -> o3d.geometry.PointCloud:
     """Generate a point cloud from a nerf.
 
@@ -157,7 +227,7 @@ def generate_point_cloud(
                     sys.exit(1)
                 normal = outputs[normal_output_name]
                 assert (
-                    torch.min(normal) >= 0.0 and torch.max(normal) <= 1.0
+                        torch.min(normal) >= 0.0 and torch.max(normal) <= 1.0
                 ), "Normal values from method output must be in [0, 1]"
                 normal = (normal * 2.0) - 1.0
             point = ray_bundle.origins + ray_bundle.directions * depth
@@ -240,13 +310,13 @@ def generate_point_cloud(
 
 
 def render_trajectory(
-    pipeline: Pipeline,
-    cameras: Cameras,
-    rgb_output_name: str,
-    depth_output_name: str,
-    rendered_resolution_scaling_factor: float = 1.0,
-    disable_distortion: bool = False,
-    return_rgba_images: bool = False,
+        pipeline: Pipeline,
+        cameras: Cameras,
+        rgb_output_name: str,
+        depth_output_name: str,
+        rendered_resolution_scaling_factor: float = 1.0,
+        disable_distortion: bool = False,
+        return_rgba_images: bool = False,
 ) -> Tuple[List[np.ndarray], List[np.ndarray]]:
     """Helper function to create a video of a trajectory.
 

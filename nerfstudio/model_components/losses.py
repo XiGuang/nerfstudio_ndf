@@ -583,3 +583,75 @@ def depth_ranking_loss(rendered_depth, gt_depth):
     out_diff = rendered_depth[::2, :] - rendered_depth[1::2, :] + m
     differing_signs = torch.sign(dpt_diff) != torch.sign(out_diff)
     return torch.nanmean((out_diff[differing_signs] * torch.sign(out_diff[differing_signs])))
+
+
+class AdaptiveMSELoss(nn.Module):
+    def __init__(self, coef=1):
+        super().__init__()
+        self.coef = coef
+        self.loss = nn.MSELoss(reduction='none')
+
+    def get_mask_mse(self, target):
+        thresh = 0.3
+        num_positive = (torch.sum(target > thresh)).float()    # +1 to avoid 0 (no gradient)
+        num_negative = (torch.sum(target <= thresh)).float()
+        mask = torch.zeros_like(target)
+
+        mask[target > thresh] = 1.0 * (num_negative + 1) / (num_positive + num_negative)
+        mask[target <= thresh] = 1.0 * (num_positive + 1) / (num_positive + num_negative)
+        return mask
+
+    def forward(self, inputs, targets):
+        mask = self.get_mask_mse(targets)
+
+        targets = targets.squeeze(0)
+        loss = self.loss(inputs, targets)
+        loss = (loss * mask).mean()
+
+        return self.coef * loss
+
+
+class RGBDensityConsistency(nn.Module):
+    def __init__(self, coef=1):
+        super().__init__()
+        self.coef = coef
+        self.loss = nn.MSELoss(reduction='mean')
+
+    def forward(self, diff_density,rgb_origin):
+        rgb = rgb_origin
+        if rgb_origin.shape[-1] == 3:
+            rgb = rgb_origin.mean(dim=-1)
+        rgb = rgb.view(-1, 1)
+
+        diff_density = diff_density.view(-1, 1)
+        loss = self.loss(rgb, diff_density)
+
+        return self.coef * loss
+
+
+class SparsityLoss(nn.Module):
+    def __init__(self, coef=1):
+        super().__init__()
+        self.coef = coef
+
+    def get_mask_ray(self, target):
+        target_grey = target.mean(dim=-1)
+        mask = torch.zeros_like(target_grey)
+        # mask[rgbs_tensor == 0] = 1
+        mask[target_grey <= 0.3] = 1
+        return mask
+
+    def forward(self, diff_density, target,ray_info=None):
+        # 筛选出黑色来进行loss，从而惩罚黑色，鼓励稀疏
+        mask = self.get_mask_ray(target).view(-1,1)
+
+        if ray_info == None:
+            mask = mask.repeat(1, diff_density.shape[1])  # batch_size * n_samples
+        else:
+            mask = mask.repeat_interleave(ray_info)
+        diff_density = diff_density.view(-1, 1)
+        mask = mask.view(-1, 1)
+        loss = torch.log(1 + torch.square(diff_density) / 0.5)
+        loss = (loss * mask).mean()
+
+        return self.coef * loss
