@@ -119,8 +119,8 @@ class NDFModel(Model):
         self.renderer_depth = DepthRenderer(method="expected")
 
         # losses
-        self.rgb_loss = AdaptiveMSELoss(coef=1)
-        self.consistency_loss = RGBDensityConsistency(coef=1)
+        self.rgb_loss = AdaptiveMSELoss(coef=2)
+        self.consistency_loss = RGBDensityConsistency(coef=0.5)
         self.sparsity_loss = SparsityLoss(coef=0.01)
 
         # metrics

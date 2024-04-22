@@ -125,13 +125,13 @@ method_configs["ndf"] = TrainerConfig(
     method_name="ndf",
     steps_per_eval_batch=500,
     steps_per_save=2000,
-    max_num_iterations=10000,
+    max_num_iterations=3000,
     mixed_precision=True,
     pipeline=VanillaPipelineConfig(
         datamanager=ParallelDataManagerConfig(
             dataparser=NerfstudioDataParserConfig(),
-            train_num_rays_per_batch=2048,
-            eval_num_rays_per_batch=2048,
+            train_num_rays_per_batch=1024,
+            eval_num_rays_per_batch=1024,
         ),
         model=NDFModelConfig(eval_num_rays_per_chunk=4096),
     ),
