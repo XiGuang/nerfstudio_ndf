@@ -23,7 +23,7 @@ from nerfstudio.utils import colormaps
 
 @dataclass
 class NDFModelConfig(ModelConfig):
-    """Instant NGP Model Config"""
+    """NDF Model Config"""
 
     _target: Type = field(
         default_factory=lambda: NDFModel
@@ -62,10 +62,10 @@ class NDFModelConfig(ModelConfig):
 
 
 class NDFModel(Model):
-    """Nerfacto model
+    """NDF model
 
     Args:
-        config: Nerfacto configuration to instantiate model
+        config: NDF configuration to instantiate model
     """
 
     config: NDFModelConfig

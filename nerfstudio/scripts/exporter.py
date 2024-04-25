@@ -168,7 +168,6 @@ class ExportNDFPointCloud(Exporter):
         print("\033[A\033[A")
         CONSOLE.print("[bold green]:white_check_mark: Saving Point Cloud")
 
-
 @dataclass
 class ExportPointCloud(Exporter):
     """Export NeRF as a point cloud."""
