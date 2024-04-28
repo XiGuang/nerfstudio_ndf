@@ -36,8 +36,8 @@ class DiffExtractor:
         self.follow_up = follow_up
         image0 = read_image(path0)
         image1 = read_image(path1)
-        image0 = cv2.resize(image0, (int(image0.shape[1] * size_ratio), int(image0.shape[0] * size_ratio)))
-        image1 = cv2.resize(image1, (int(image1.shape[1] * size_ratio), int(image1.shape[0] * size_ratio)))
+        image0 = cv2.resize(image0, None, fx=size_ratio, fy=size_ratio)
+        image1 = cv2.resize(image1, None, fx=size_ratio, fy=size_ratio)
         image0, scale0 = preprocess(image0)
         image1, scale1 = preprocess(image1)
 
